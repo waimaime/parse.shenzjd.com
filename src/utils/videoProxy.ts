@@ -11,8 +11,17 @@
  * 其他平台（B站/微博/快手等）直链通常可正常播放，无需代理。
  */
 
-/** 需要走代理的 CDN 主机（Referer 防盗链） */
-const PROXY_HOST_SUFFIXES = [".xhscdn.com", "xhscdn.com"];
+/**
+ * 需要走代理的 CDN 主机（Referer 防盗链）。
+ *
+ * 2026-10-16 实测修正：小红书 xhscdn 已**取消** Referer 防盗链——
+ * 无 Referer / Referer=本站 / Referer=xiaohongshu 三种情况一律 200，
+ * 且响应带 `Access-Control-Allow-Origin: *`（浏览器可跨域读取）。
+ * 继续套 /api/video-proxy 反而有害：EdgeOne Cloud Functions 对函数响应体
+ * 有大小上限，19MB 的小红书视频经代理直接返回 413 Payload Too Large，
+ * 表现为「解析成功但下载失败」。因此移出代理名单，改为直连 + 前端 Blob 下载。
+ */
+const PROXY_HOST_SUFFIXES: string[] = [];
 
 /** 抖音视频 CDN 主机（ftyp 头混淆，需前端检测后按需回退代理） */
 const DOUYIN_VIDEO_HOST_SUFFIXES = [
