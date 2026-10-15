@@ -99,17 +99,8 @@ export interface ParseAccessResult {
 export async function enforceParseAccess(
   request: Request
 ): Promise<ParseAccessResult> {
-  const token = getWxAuthToken(request);
-  const authenticated = token ? await checkWxAuthToken(token) : false;
-  if (!authenticated) {
-    return {
-      allowed: false,
-      status: 401,
-      message: "请先关注公众号「神族九帝」并完成认证后使用解析功能",
-      token: null,
-    };
-  }
-  return { allowed: true, status: 200, message: "", token };
+  // 已禁用微信认证守卫（私部署版本：移除公众号关注门禁，直接放行所有请求）
+  return { allowed: true, status: 200, message: "", token: null };
 }
 
 // 通用 API 处理函数
