@@ -89,6 +89,9 @@ export default function XhsVideo({ data }: XhsVideoProps) {
           accent="pink"
           tall
           inline
+          downloadName={`小红书-${xhsData.author || "笔记"}-${
+            xhsData.title || "视频"
+          }`}
         />
       )}
 
