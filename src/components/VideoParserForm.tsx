@@ -10,7 +10,8 @@ import {
   detectPlatform,
   hasValidVideoUrl,
 } from "@/utils/share";
-import { showWxAuth } from "@/lib/wx-auth-client";
+// 微信登录弹窗已移除（私部署版）：后端 enforceParseAccess 已放行，无需登录即可解析
+// import { showWxAuth } from "@/lib/wx-auth-client";
 // 广告弹窗暂时下线：产品口径改为「完全放开让用户用」，弹窗相关代码先注释保留，
 // 恢复时取消下方注释（并恢复 countSuccessAndMaybePopup 定义与成功分支的调用）。
 // import { unlockByAd } from "@/lib/floating-unlock-client";
@@ -162,9 +163,7 @@ export default function VideoParserForm({
     async (url: string, platform: VideoPlatformKey | "auto", retryCount = 0) => {
       if (!url) return;
 
-      // 微信强制关注：每次发起解析都弹出（不可关闭），关注验证通过后才继续解析
-      const authed = await showWxAuth();
-      if (!authed) return; // 未完成关注则不发起解析（required=true 下理论上无法跳过）
+      // 微信登录弹窗已移除：粘贴链接后直接解析，不再要求扫码关注
 
       const cacheKey = `${platform}:${url}`;
 
