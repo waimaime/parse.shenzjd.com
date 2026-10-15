@@ -75,9 +75,14 @@ async function parseFromSsr(videoId) {
   }
   const videoData =
     json?.loaderData?.["video_(id)/page"]?.videoInfoRes?.item_list?.[0];
-  if (!videoData?.video?.play_addr?.url_list?.[0]) {
+  const playUrlList = videoData?.video?.play_addr?.url_list;
+  if (!Array.isArray(playUrlList) || !playUrlList[0]) {
     return { code: 404, msg: "未找到播放地址" };
   }
+  // 与抖音解析器同口径：playwm（带水印）→ play（无水印）
+  const videoUrl = String(playUrlList[0])
+    .replace("playwm", "play")
+    .replace("play_wm", "play");
   return {
     code: 200,
     msg: "解析成功",
@@ -87,7 +92,7 @@ async function parseFromSsr(videoId) {
       avatar: videoData.author?.avatar_thumb?.url_list?.[0] || "",
       uid: String(videoData.author?.user_id || ""),
       cover: videoData.video?.cover?.url_list?.[0] || "",
-      url: videoData.video.play_addr.url_list[0],
+      url: videoUrl,
     },
   };
 }
