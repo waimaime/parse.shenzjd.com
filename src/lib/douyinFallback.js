@@ -45,7 +45,13 @@ function sign17(body) {
   };
 }
 
-/** 从任意嵌套结构中取第一个 http(s) 字符串 */
+/** 从任意嵌套结构中取第一个 http(s) 字符串（无水印优先） */
+function sanitizeVideoUrl(u) {
+  if (typeof u !== "string" || !u.startsWith("http")) return u;
+  // playwm / play_wm 是带水印端点，统一替换为无水印 play
+  return u.replace("playwm", "play").replace("play_wm", "play");
+}
+
 function firstHttp(value) {
   if (typeof value === "string" && value.startsWith("http")) return value;
   if (Array.isArray(value)) {
@@ -54,7 +60,9 @@ function firstHttp(value) {
       if (got) return got;
     }
   } else if (value && typeof value === "object") {
-    for (const key of ["url_list", "urlList", "url", "play", "src", "uri", "nwm_video_url", "nwm_video_url_hq", "wm_video_url", "video_url", "play_video"]) {
+    // 顺序关键：nwm_*（no-watermark）是无水印字段，必须最先取；
+    // wm_video_url 是明确带水印的字段，永远不用。
+    for (const key of ["nwm_video_url_hq", "nwm_video_url", "url_list", "urlList", "url", "play", "src", "uri", "video_url", "play_video"]) {
       if (key in value) {
         const got = firstHttp(value[key]);
         if (got) return got;
@@ -79,6 +87,8 @@ function pickGeneric(data) {
   let url = video ? firstHttp(video) : null;
   url = url || firstHttp(data.nwm_video_url_hq) || firstHttp(data.nwm_video_url) ||
     firstHttp(data.play_video) || firstHttp(data.video_url) || firstHttp(data.url) || firstHttp(data.play);
+  // 兜底直链统一去水印化（playwm/play_wm → play）
+  if (url) url = sanitizeVideoUrl(url);
   const cover = firstHttp(data.cover) || firstHttp(data.cover_url) || firstHttp(data.origin_cover);
   return { url, title, cover };
 }
@@ -255,4 +265,4 @@ export async function public17Parse(url) {
   return { ok: true, key: "17change", url: direct, title, cover, author };
 }
 
-export const _internal = { sign17, firstHttp, pickGeneric, isOkCode };
+export const _internal = { sign17, firstHttp, pickGeneric, isOkCode, sanitizeVideoUrl };
