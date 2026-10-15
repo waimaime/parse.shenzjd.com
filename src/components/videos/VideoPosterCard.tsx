@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import Image from "next/image";
 import { buildVideoProxyUrl, isDouyinVideoUrl } from "@/utils/videoProxy";
 import { useDouyinVideoUrl } from "@/hooks/useDouyinVideoUrl";
+import { downloadVideoFile } from "@/utils/downloadVideo";
 
 /**
  * 统一视频展示卡片（简化版）：上方封面图 + 下方「播放视频 / 下载视频」两个链接。
@@ -76,6 +77,8 @@ interface VideoPosterCardProps {
   playText?: string;
   /** 下载按钮文案，默认「下载视频」 */
   downloadText?: string;
+  /** 下载文件名（不含扩展名，扩展名按 Content-Type 自动补全） */
+  downloadName?: string;
   /** 音频直链（可选），存在时额外显示「下载音频」按钮 */
   audioUrl?: string;
   /** 音频按钮文案，默认「下载音频」 */
@@ -96,6 +99,7 @@ export default function VideoPosterCard({
   tall = false,
   playText = "播放视频",
   downloadText = "下载视频",
+  downloadName,
   audioUrl,
   audioText = "下载音频",
   showDownload = true,
@@ -105,14 +109,36 @@ export default function VideoPosterCard({
   const a = ACCENTS[accent];
   // 内嵌播放状态
   const [playing, setPlaying] = useState(false);
+  // 下载状态：真实下载（fetch → Blob）期间显示进度
+  const [downloading, setDownloading] = useState(false);
+  const [progress, setProgress] = useState(0);
   // 抖音视频：默认直链播放，检测到 ftyp 混淆时回退代理（省服务器流量）
-  // 其他平台（小红书等 Referer 防盗链）：直接走代理
+  // 其他平台：直连（小红书 xhscdn 实测无防盗链且支持 CORS，经函数代理会因响应体上限 413）
   const isDouyin = isDouyinVideoUrl(url);
   const { url: douyinUrl, checking: douyinChecking } = useDouyinVideoUrl(url);
   const playUrl = isDouyin ? douyinUrl : buildVideoProxyUrl(url);
 
   // 内嵌模式：点击封面/播放按钮切换为 <video> 播放器
   const handleInlinePlay = () => setPlaying(true);
+
+  /**
+   * 真实下载：前端 fetch 直链 → Blob → a[download] 保存。
+   * 不走 /api/video-proxy：EdgeOne 函数响应体有上限，大视频会 413。
+   * 跨域被拒时 downloadVideoFile 内部自动回退为新窗口打开。
+   */
+  const handleDownload = async () => {
+    if (downloading || douyinChecking) return;
+    setDownloading(true);
+    setProgress(0);
+    try {
+      await downloadVideoFile(playUrl || url, downloadName || "video", {
+        onProgress: setProgress,
+      });
+    } finally {
+      setDownloading(false);
+      setProgress(0);
+    }
+  };
 
   return (
     <div className="space-y-3">
@@ -212,27 +238,53 @@ export default function VideoPosterCard({
         )}
 
         {showDownload && (
-          <a
-            href={douyinChecking ? undefined : playUrl}
-            target={inline ? undefined : "_blank"}
-            rel={inline ? undefined : "noopener noreferrer"}
-            download={inline}
-            aria-disabled={douyinChecking}
-            className={`group inline-flex items-center justify-center gap-2 px-6 py-3 bg-glass-2 hover:bg-glass-3 text-primary rounded-xl font-medium transition-all duration-300 border border-border-subtle hover:-translate-y-0.5 flex-1 ${douyinChecking ? "opacity-60 pointer-events-none" : ""}`}>
-            <svg
-              className="w-5 h-5 transition-transform group-hover:scale-110"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              strokeWidth={2}>
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-              />
-            </svg>
-            {douyinChecking ? "检测中…" : downloadText}
-          </a>
+          <button
+            type="button"
+            onClick={handleDownload}
+            disabled={douyinChecking || downloading}
+            aria-disabled={douyinChecking || downloading}
+            className={`group inline-flex items-center justify-center gap-2 px-6 py-3 bg-glass-2 hover:bg-glass-3 text-primary rounded-xl font-medium transition-all duration-300 border border-border-subtle hover:-translate-y-0.5 flex-1 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0`}>
+            {downloading ? (
+              <svg
+                className="w-5 h-5 animate-spin"
+                fill="none"
+                viewBox="0 0 24 24">
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                />
+              </svg>
+            ) : (
+              <svg
+                className="w-5 h-5 transition-transform group-hover:scale-110"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                strokeWidth={2}>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                />
+              </svg>
+            )}
+            {douyinChecking
+              ? "检测中…"
+              : downloading
+              ? progress > 0
+                ? `下载中 ${progress}%`
+                : "下载中…"
+              : downloadText}
+          </button>
         )}
 
         {/* 音频下载：与视频下载同款式（中性描边），点击新窗口打开音频直链 */}
