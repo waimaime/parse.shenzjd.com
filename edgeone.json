@@ -1,0 +1,47 @@
+{
+  "cloudFunctions": {
+    "nodejs": {
+      "maxDuration": 120
+    },
+    "mainlandRegions": ["ap-guangzhou"],
+    "overseasRegions": ["ap-singapore"]
+  },
+  "headers": [
+    {
+      "source": "/_next/static/*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable, s-maxage=31536000"
+        }
+      ]
+    },
+    {
+      "source": "/logos/*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=2592000, s-maxage=2592000, stale-while-revalidate=86400"
+        }
+      ]
+    },
+    {
+      "source": "/brand/*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=2592000, s-maxage=2592000, stale-while-revalidate=86400"
+        }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    }
+  ]
+}
