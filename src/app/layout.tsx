@@ -93,16 +93,8 @@ export default function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <link rel="icon" type="image/svg+xml" href="https://cdn.jsdmirror.com/gh/wu529778790/img.shenzjd.com@master/blog/imgx-20260828-215653-2ha5.svg" />
         <link rel="apple-touch-icon" href="https://cdn.jsdmirror.com/gh/wu529778790/img.shenzjd.com@master/blog/imgx-20260828-220754-822r.png" />
-        {/* 顶部导航 + 头像浮窗：@wu529778790/site-navbar Web Component 版
-            一条 JS 引入，组件内部自动加载并初始化 wx-auth-sdk（静默校验登录态），
-            无需手动引 SDK、无需写 WxAuth.init()。
-            注意：只有 body 里出现 <site-navbar> 标签才会渲染整条导航；
-            这里保留 script 仅用于初始化 WxAuth 登录态（解析弹窗依赖），
-            删除 <site-navbar /> 标签即可隐藏顶部导航条。 */}
-        <script
-          src="https://unpkg.com/@wu529778790/site-navbar@latest/dist/site-navbar.wc.js"
-          defer
-        />
+        {/* 顶部导航与微信登录已全部移除（私部署版）：site-navbar / floating-qr /
+            wx-auth 相关脚本均已删除，解析流程不再要求扫码登录 */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
