@@ -14,37 +14,50 @@
  *   ->   { status, url, headers, setCookie: string[], body: base64 } 或 { error }
  */
 
-import { fetch as undiciFetch, ProxyAgent } from "undici";
 import { logger } from "@/lib/api-utils";
+
+// 注意：undici 必须「按需动态加载」，不能顶层 import。
+// undici v8 依赖 Node 22.5+ 才有的 util.markAsUncloneable，而 EdgeOne Cloud Functions
+// 运行环境是 Node.js v20（腾讯云函数/Pages 控制台不可选更高版本）。顶层引入会让模块在
+// 加载期直接抛 "util.markAsUncloneable is not a function"，整条 B 站路由 500。
+// 因此仅在确实配置了 BILIBILI_PROXY（需要 ProxyAgent）时才去 import("undici")；
+// 中继模式与直连模式一律使用运行时内置的全局 fetch（Node 18+ 原生支持）。
+async function loadUndici() {
+  const mod = await import("undici");
+  return mod;
+}
 
 // B站请求统一 UA（写死：模拟 Chrome 浏览器，基本不变，无需暴露为配置）
 export const BILIBILI_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-let dispatcher = null;
-let initialized = false;
+let dispatcherPromise = null;
 
-function getDispatcher() {
-  if (initialized) return dispatcher;
-  initialized = true;
+async function getDispatcher() {
   const proxyUrl = process.env.BILIBILI_PROXY || "";
   if (!proxyUrl) return null;
-  try {
-    dispatcher = new ProxyAgent(proxyUrl);
-    // 日志脱敏：隐掉协议与认证信息，只留 host:port
-    let safe = proxyUrl;
-    try {
-      const u = new URL(proxyUrl);
-      safe = `${u.hostname}${u.port ? `:${u.port}` : ""}`;
-    } catch {
-      // 非 URL 格式，保持原样但不打印 query
-    }
-    logger.log(`[bilibili-proxy] B站请求启用代理出口: ${safe}`);
-  } catch (e) {
-    logger.warn(`[bilibili-proxy] 代理初始化失败，回退直连: ${e.message}`);
-    dispatcher = null;
+  if (!dispatcherPromise) {
+    dispatcherPromise = (async () => {
+      try {
+        const { ProxyAgent } = await loadUndici();
+        const agent = new ProxyAgent(proxyUrl);
+        // 日志脱敏：隐掉协议与认证信息，只留 host:port
+        let safe = proxyUrl;
+        try {
+          const u = new URL(proxyUrl);
+          safe = `${u.hostname}${u.port ? `:${u.port}` : ""}`;
+        } catch {
+          // 非 URL 格式，保持原样但不打印 query
+        }
+        logger.log(`[bilibili-proxy] B站请求启用代理出口: ${safe}`);
+        return agent;
+      } catch (e) {
+        logger.warn(`[bilibili-proxy] 代理初始化失败，回退直连: ${e.message}`);
+        return null;
+      }
+    })();
   }
-  return dispatcher;
+  return dispatcherPromise;
 }
 
 /** 中继响应：把云函数返回的 JSON 包装成 Response 兼容对象 */
@@ -91,7 +104,7 @@ async function relayFetch(url, init = {}) {
     relayLogged = true;
     logger.log("[bilibili-relay] B站请求启用云函数中继出口");
   }
-  const response = await undiciFetch(relayUrl, {
+  const response = await fetch(relayUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -118,14 +131,17 @@ async function relayFetch(url, init = {}) {
  * @param {string} url
  * @param {object} [init] 同 fetch init
  */
-export function biliFetch(url, init = {}) {
+export async function biliFetch(url, init = {}) {
   if (process.env.BILIBILI_RELAY_URL) {
     return relayFetch(url, init);
   }
-  const d = getDispatcher();
+  const d = await getDispatcher();
   if (d) {
+    // 代理模式：原生 fetch 不支持 dispatcher，此时才加载 undici 的 fetch
+    const { fetch: undiciFetch } = await loadUndici();
     init.dispatcher = d;
+    return undiciFetch(url, init);
   }
-  // undici fetch 与标准 fetch 行为兼容（redirect/headers/AbortSignal 均支持）
-  return undiciFetch(url, init);
+  // 直连：使用运行时内置 fetch（Node 18+），避免依赖 undici 的 Node 版本要求
+  return fetch(url, init);
 }
